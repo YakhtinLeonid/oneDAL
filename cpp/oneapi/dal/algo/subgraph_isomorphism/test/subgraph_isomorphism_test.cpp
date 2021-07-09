@@ -23,7 +23,7 @@
 #include "oneapi/dal/table/row_accessor.hpp"
 #include "oneapi/dal/test/engine/common.hpp"
 #include "oneapi/dal/graph/service_functions.hpp"
-#include "oneapi/dal/test/engine/graph_data_common.hpp"
+#include "oneapi/dal/test/engine/graph_data_generators.hpp"
 #include "oneapi/dal/test/engine/graph_data_predefined.hpp"
 
 namespace oneapi::dal::algo::subgraph_isomorphism::test {
@@ -35,10 +35,9 @@ typedef dal::preview::subgraph_isomorphism::kind isomorphism_kind;
 template <class T>
 struct LimitedAllocator {
     typedef T value_type;
-    typedef T *pointer;
 
-    bool is_limited;
-    size_t max_allocation_size;
+    bool is_limited = false;
+    size_t max_allocation_size = 0;
 
     LimitedAllocator(bool is_limited = false, size_t max_allocation_size = 0)
             : is_limited(is_limited),
@@ -48,16 +47,6 @@ struct LimitedAllocator {
     LimitedAllocator(const LimitedAllocator<U> &other) noexcept {
         is_limited = other.is_limited;
         max_allocation_size = other.max_allocation_size;
-    }
-
-    template <class U>
-    bool operator==(const LimitedAllocator<U> &) const noexcept {
-        return true;
-    }
-
-    template <class U>
-    bool operator!=(const LimitedAllocator<U> &) const noexcept {
-        return false;
     }
 
     T *allocate(const size_t n) const {
@@ -79,25 +68,69 @@ struct LimitedAllocator {
     }
 };
 
-struct subgraph_isomorphism_optional {
-public:
-    subgraph_isomorphism_optional(){};
-    subgraph_isomorphism_optional(const std::vector<std::int32_t> &target_labels,
-                                  const std::vector<std::int32_t> &pattern_labels)
-            : target_labels(target_labels),
-              pattern_labels(pattern_labels) {}
+template <typename Allocator = std::allocator<char>>
+class subgraph_isomorphism_test_descriptor {
+    bool semantic_match = false;
+    bool is_vertex_labeled = false;
+    std::int64_t max_match_count = 0;
+    std::int64_t expected_match_count = 0;
+    isomorphism_kind kind = isomorphism_kind::induced;
+    Allocator allocator;
 
-    std::vector<std::int32_t> target_labels;
-    std::vector<std::int32_t> pattern_labels;
+public:
+    bool get_semantic_match() const {
+        return semantic_match;
+    }
+    bool get_is_vertex_labeled() const {
+        return is_vertex_labeled;
+    }
+    std::int64_t get_max_match_count() const {
+        return max_match_count;
+    }
+    std::int64_t get_expected_match_count() const {
+        return expected_match_count;
+    }
+    isomorphism_kind get_isomorphism_kind() const {
+        return kind;
+    }
+    Allocator get_allocator() const {
+        return allocator;
+    }
+    subgraph_isomorphism_test_descriptor<Allocator> &set_semantic_match(bool semantic_match) {
+        this->semantic_match = semantic_match;
+        return *this;
+    }
+    subgraph_isomorphism_test_descriptor<Allocator> &set_is_vertex_labeled(bool is_vertex_labeled) {
+        this->is_vertex_labeled = is_vertex_labeled;
+        return *this;
+    }
+    subgraph_isomorphism_test_descriptor<Allocator> &set_max_match_count(
+        std::int64_t max_match_count) {
+        this->max_match_count = max_match_count;
+        return *this;
+    }
+    subgraph_isomorphism_test_descriptor<Allocator> &set_expected_match_count(
+        std::int64_t expected_match_count) {
+        this->expected_match_count = expected_match_count;
+        return *this;
+    }
+    subgraph_isomorphism_test_descriptor<Allocator> &set_isomorphism_kind(isomorphism_kind kind) {
+        this->kind = kind;
+        return *this;
+    }
+    subgraph_isomorphism_test_descriptor<Allocator> &set_allocator(const Allocator &allocator) {
+        this->allocator = allocator;
+        return *this;
+    }
 };
 
 class subgraph_isomorphism_test {
 public:
-    using my_graph_type = dal::preview::undirected_adjacency_vector_graph<std::int32_t>;
+    using graph_t = dal::preview::undirected_adjacency_vector_graph<std::int32_t>;
 
     auto create_graph(const graph_base_data &graph_data) {
-        my_graph_type my_graph;
-        auto &graph_impl = oneapi::dal::detail::get_impl(my_graph);
+        graph_t graph;
+        auto &graph_impl = oneapi::dal::detail::get_impl(graph);
         auto &vertex_allocator = graph_impl._vertex_allocator;
         auto &edge_allocator = graph_impl._edge_allocator;
 
@@ -129,11 +162,10 @@ public:
         graph_impl.set_topology(vertex_count, edge_count, rows, cols, cols_count, degrees);
         graph_impl.get_topology()._rows_vertex =
             oneapi::dal::preview::detail::container<std::int32_t>::wrap(rows_vertex, rows_count);
-        return my_graph;
+        return graph;
     }
 
-    auto create_graph_with_vertex_labels(const graph_base_data &graph_data,
-                                         const std::vector<std::int32_t> &labels) {
+    auto create_graph_with_vertex_labels(const graph_base_data &graph_data) {
         auto graph = create_graph(graph_data);
         auto &graph_impl = oneapi::dal::detail::get_impl(graph);
         auto &vertex_allocator = graph_impl._vertex_allocator;
@@ -145,7 +177,7 @@ public:
             oneapi::dal::preview::detail::allocate(vertex_allocator, vertex_count);
         vv_p = oneapi::dal::array<std::int32_t>::wrap(labels_array, vertex_count);
         for (int i = 0; i < vertex_count; i++) {
-            labels_array[i] = labels[i];
+            labels_array[i] = graph_data.get_labels()[i];
         }
         return graph;
     }
@@ -198,7 +230,6 @@ public:
 
     bool check_isomorphism_result(const graph_base_data &target_graph_data,
                                   const graph_base_data &pattern_graph_data,
-                                  const subgraph_isomorphism_optional &optional,
                                   const oneapi::dal::table &table,
                                   bool is_induced,
                                   bool is_vertex_labeled) {
@@ -221,8 +252,8 @@ public:
             if (is_vertex_labeled) {
                 for (std::size_t pattern_vertex = 0; pattern_vertex < permutation.size();
                      ++pattern_vertex) {
-                    if (optional.target_labels[permutation[pattern_vertex]] !=
-                        optional.pattern_labels[pattern_vertex]) {
+                    if (target_graph_data.get_labels()[permutation[pattern_vertex]] !=
+                        pattern_graph_data.get_labels()[pattern_vertex]) {
                         return false;
                     }
                 }
@@ -234,62 +265,36 @@ public:
         return true;
     }
 
-    void check_subgraph_isomorphism(const graph_base_data &target_graph_data,
-                                    const graph_base_data &pattern_graph_data,
-                                    const subgraph_isomorphism_optional &optional,
-                                    bool semantic_match,
-                                    isomorphism_kind kind,
-                                    std::int64_t max_match_count,
-                                    std::int64_t expected_match_count,
-                                    bool is_vertex_labeled = false) {
-        check_subgraph_isomorphism(target_graph_data,
-                                   pattern_graph_data,
-                                   optional,
-                                   semantic_match,
-                                   kind,
-                                   max_match_count,
-                                   expected_match_count,
-                                   is_vertex_labeled,
-                                   std::allocator<char>());
-    }
-
-    template <typename AllocatorType>
-    void check_subgraph_isomorphism(const graph_base_data &target_graph_data,
-                                    const graph_base_data &pattern_graph_data,
-                                    const subgraph_isomorphism_optional &optional,
-                                    bool semantic_match,
-                                    isomorphism_kind kind,
-                                    std::int64_t max_match_count,
-                                    std::int64_t expected_match_count,
-                                    bool is_vertex_labeled,
-                                    AllocatorType alloc) {
-        const auto target_graph =
-            is_vertex_labeled
-                ? create_graph_with_vertex_labels(target_graph_data, optional.target_labels)
-                : create_graph(target_graph_data);
-        const auto pattern_graph =
-            is_vertex_labeled
-                ? create_graph_with_vertex_labels(pattern_graph_data, optional.pattern_labels)
-                : create_graph(pattern_graph_data);
+    template <typename Allocator>
+    void check_subgraph_isomorphism(
+        const graph_base_data &target_graph_data,
+        const graph_base_data &pattern_graph_data,
+        const subgraph_isomorphism_test_descriptor<Allocator> &test_desc) {
+        const auto target_graph = test_desc.get_is_vertex_labeled()
+                                      ? create_graph_with_vertex_labels(target_graph_data)
+                                      : create_graph(target_graph_data);
+        const auto pattern_graph = test_desc.get_is_vertex_labeled()
+                                       ? create_graph_with_vertex_labels(pattern_graph_data)
+                                       : create_graph(pattern_graph_data);
         const auto subgraph_isomorphism_desc =
             dal::preview::subgraph_isomorphism::descriptor<
                 float,
                 dal::preview::subgraph_isomorphism::method::by_default,
                 dal::preview::subgraph_isomorphism::task::by_default,
-                AllocatorType>(alloc)
-                .set_kind(kind)
-                .set_max_match_count(max_match_count)
-                .set_semantic_match(semantic_match);
+                Allocator>(test_desc.get_allocator())
+                .set_kind(test_desc.get_isomorphism_kind())
+                .set_max_match_count(test_desc.get_max_match_count())
+                .set_semantic_match(test_desc.get_semantic_match());
 
         const auto result =
             dal::preview::graph_matching(subgraph_isomorphism_desc, target_graph, pattern_graph);
-        REQUIRE(expected_match_count == result.get_match_count());
-        REQUIRE(check_isomorphism_result(target_graph_data,
-                                         pattern_graph_data,
-                                         optional,
-                                         result.get_vertex_match(),
-                                         kind == isomorphism_kind::induced,
-                                         is_vertex_labeled));
+        REQUIRE(test_desc.get_expected_match_count() == result.get_match_count());
+        REQUIRE(
+            check_isomorphism_result(target_graph_data,
+                                     pattern_graph_data,
+                                     result.get_vertex_match(),
+                                     test_desc.get_isomorphism_kind() == isomorphism_kind::induced,
+                                     test_desc.get_is_vertex_labeled()));
     }
 };
 
@@ -306,49 +311,64 @@ SUBGRAPH_ISOMORPHISM_INDUCED_TEST(
     "Induced: Bit target representation, max_match_count > total number of SI") {
     this->check_subgraph_isomorphism(self_matching_graph_data(),
                                      self_matching_graph_data(),
-                                     subgraph_isomorphism_optional(),
-                                     false,
-                                     isomorphism_kind::induced,
-                                     100,
-                                     72);
+                                     subgraph_isomorphism_test_descriptor()
+                                         .set_semantic_match(false)
+                                         .set_is_vertex_labeled(false)
+                                         .set_isomorphism_kind(isomorphism_kind::induced)
+                                         .set_max_match_count(100)
+                                         .set_expected_match_count(72));
 }
 
 SUBGRAPH_ISOMORPHISM_INDUCED_TEST(
     "Induced + Labeled vertexes: Bit target representation, all matches check") {
     this->check_subgraph_isomorphism(
-        self_matching_graph_data(),
-        self_matching_graph_data(),
-        subgraph_isomorphism_optional(si_induced_labeled_vertexes_bit_all,
-                                      si_induced_labeled_vertexes_bit_all),
-        false,
-        isomorphism_kind::induced,
-        0,
-        4,
-        true);
+        self_matching_graph_data().set_labels(si_induced_labeled_vertexes_bit_all),
+        self_matching_graph_data().set_labels(si_induced_labeled_vertexes_bit_all),
+        subgraph_isomorphism_test_descriptor()
+            .set_semantic_match(false)
+            .set_is_vertex_labeled(true)
+            .set_isomorphism_kind(isomorphism_kind::induced)
+            .set_max_match_count(0)
+            .set_expected_match_count(4));
 }
 
 SUBGRAPH_ISOMORPHISM_INDUCED_TEST("Induced: Bit target representation, no matches") {
     this->check_subgraph_isomorphism(complete_graph_data(6),
                                      complete_without_edge_graph_data(5),
-                                     subgraph_isomorphism_optional(),
-                                     false,
-                                     isomorphism_kind::induced,
-                                     1,
-                                     0);
+                                     subgraph_isomorphism_test_descriptor()
+                                         .set_semantic_match(false)
+                                         .set_is_vertex_labeled(false)
+                                         .set_isomorphism_kind(isomorphism_kind::induced)
+                                         .set_max_match_count(1)
+                                         .set_expected_match_count(0));
 }
 
 SUBGRAPH_ISOMORPHISM_NON_INDUCED_TEST(
     "Non-induced: Bit target representation, max_match_count <= total number of SI") {
     this->check_subgraph_isomorphism(
-        complete_graph_data(6),
-        complete_without_edge_graph_data(5),
-        subgraph_isomorphism_optional(si_non_induced_bit_le_complete_6,
-                                      si_non_induced_bit_le_complete_5_without_edge),
-        false,
-        isomorphism_kind::non_induced,
-        50,
-        50,
-        false);
+        complete_graph_data(6).set_labels(si_non_induced_bit_le_complete_6),
+        complete_without_edge_graph_data(5).set_labels(
+            si_non_induced_bit_le_complete_5_without_edge),
+        subgraph_isomorphism_test_descriptor()
+            .set_semantic_match(false)
+            .set_is_vertex_labeled(false)
+            .set_isomorphism_kind(isomorphism_kind::non_induced)
+            .set_max_match_count(50)
+            .set_expected_match_count(50));
+}
+
+SUBGRAPH_ISOMORPHISM_ALLOCATOR_TEST("Custom allocator, positive case") {
+    std::vector<std::int32_t> lolipop_5_100_labels(105);
+    lolipop_5_100_labels[1] = lolipop_5_100_labels[3] = lolipop_5_100_labels[4] = 1;
+    this->check_subgraph_isomorphism(
+        lolipop_graph_data(5, 100).set_labels(lolipop_5_100_labels),
+        paths_x_y_z_graph_data(1, 2, 5).set_labels(si_custom_allocator_positive_paths_1_2_5),
+        subgraph_isomorphism_test_descriptor<LimitedAllocator<char>>()
+            .set_semantic_match(false)
+            .set_is_vertex_labeled(true)
+            .set_isomorphism_kind(isomorphism_kind::non_induced)
+            .set_max_match_count(10)
+            .set_expected_match_count(4));
 }
 
 } // namespace oneapi::dal::algo::subgraph_isomorphism::test

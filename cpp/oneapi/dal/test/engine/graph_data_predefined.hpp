@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "oneapi/dal/test/engine/graph_data_common.hpp"
+#include "oneapi/dal/test/engine/graph_data_generators.hpp"
 
 namespace oneapi::dal::test::engine::graph_data {
 
@@ -48,5 +48,7 @@ const std::vector<std::int32_t> si_non_induced_bit_le_complete_6 = { 0, 0, 0, 0,
 const std::vector<std::int32_t> si_non_induced_bit_le_complete_5_without_edge = { 0, 1, 0, 1, 0 };
 const std::vector<std::int32_t> si_induced_labeled_vertexes_bit_all = { 0, 3, 3, 1, 2, 3,
                                                                         3, 2, 0, 3, 3, 1 };
+const std::vector<std::int32_t> si_custom_allocator_positive_paths_1_2_5 = { 1, 1, 1, 0, 0,
+                                                                             0, 0, 0, 0 };
 
 } // namespace oneapi::dal::test::engine::graph_data
