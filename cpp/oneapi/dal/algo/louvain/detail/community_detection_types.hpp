@@ -14,7 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-
 #pragma once
 
 #include "oneapi/dal/algo/louvain/common.hpp"
@@ -27,9 +26,9 @@ template <typename Graph, typename Task>
 class community_detection_input_impl : public base {
 public:
     community_detection_input_impl(const Graph& g)
-            : g(g) {}
+            : graph_data(g) {}
     
-    const Graph g;
+    const Graph& graph_data;
 };
 
 } // namespace oneapi::dal::preview::louvain::detail

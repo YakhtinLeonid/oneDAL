@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "oneapi/dal/algo/louvain/community_detection_types.hpp"
+#include "oneapi/dal/detail/error_messages.hpp"
 
 namespace oneapi::dal::preview::louvain {
 
@@ -30,22 +31,32 @@ template <typename Task>
 community_detection_result<Task>::community_detection_result()
         : impl_(new community_detection_result_impl()) {}
 
-template <typename Task>
-community_detection_result<Task>::community_detection_result(const table& partition,
-                                                             double modularity)
-        : impl_(new community_detection_result_impl()) {
-    impl_->partition = partition;
-    impl_->modularity = modularity;
-}
+// template <typename Task>
+// community_detection_result<Task>::community_detection_result(const table& partition,
+//                                                              double modularity)
+//         : impl_(new community_detection_result_impl()) {
+//     impl_->partition = partition;
+//     impl_->modularity = modularity;
+// }
 
 template <typename Task>
-const table& community_detection_result<Task>::get_partition() const {
+const table& community_detection_result<Task>::get_partition_impl() const {
     return impl_->partition;
 }
 
 template <typename Task>
-double community_detection_result<Task>::get_modularity() const {
+double community_detection_result<Task>::get_modularity_impl() const {
     return impl_->modularity;
+}
+
+template <typename Task>
+void community_detection_result<Task>::set_partition_impl(const table& value) const {
+    impl_->partition = value;
+}
+
+template <typename Task>
+void community_detection_result<Task>::get_modularity_impl(double value) const {
+    impl_->modularity = value;
 }
 
 template class ONEDAL_EXPORT community_detection_result<task::non_overlapping_communities>;

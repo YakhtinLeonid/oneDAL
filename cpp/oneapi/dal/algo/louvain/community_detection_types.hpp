@@ -45,14 +45,31 @@ class community_detection_result {
 public:
     using task_t = Task;
     community_detection_result();
-    community_detection_result(const table& table, double modularity);
+    // community_detection_result(const table& table, double modularity);
 
-    const table& get_partition() const;
+    const table& get_partition() const{
+        return get_partition_impl();
+    }
 
-    double get_modularity() const;
+    double get_modularity() const{
+        return get_modularity_impl();
+    }
+
+    auto& set_partition(const table& value){
+        set_partition_impl(value);
+        return *this;
+    }
+
+    auto& set_modularity(double value){
+        set_modularity_impl(value);
+        return *this;
+    }
+
 private:
-    // void set_partition_impl();
-    // void set_modularity_impl();
+    const table& get_partition_impl() const;
+    double get_modularity_impl() const;
+    void set_partition_impl(const table& value);
+    void set_modularity_impl(double value);
     dal::detail::pimpl<detail::community_detection_result_impl> impl_;
 };
 
@@ -62,7 +79,7 @@ community_detection_input<Graph, Task>::community_detection_input(const Graph& g
 
 template <typename Graph, typename Task>
 const Graph& community_detection_input<Graph, Task>::get_graph() const {
-    return impl_->g;
+    return impl_->graph_data;
 }
 
 } // namespace oneapi::dal::preview::louvain

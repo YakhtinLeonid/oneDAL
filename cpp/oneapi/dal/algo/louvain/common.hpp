@@ -57,9 +57,9 @@ public:
 
     descriptor_base();
 
-    auto get_tolerance() const -> double;
-    auto get_resolution() const -> double;
-    auto get_max_iteration_count() const -> std::int64_t;
+    double get_tolerance() const;
+    double get_resolution() const;
+    std::int64_t get_max_iteration_count() const;
 
 protected:
     void set_tolerance_impl(double tolerance);

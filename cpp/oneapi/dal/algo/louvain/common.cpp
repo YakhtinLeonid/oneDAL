@@ -16,15 +16,19 @@
 
 #include "oneapi/dal/algo/louvain/common.hpp"
 
-namespace oneapi::dal::preview::louvain {
-namespace detail {
+namespace oneapi::dal::preview::louvain::detail {
 
 template <typename Task>
 class descriptor_impl : public base {
 public:
-    double tolerance;
-    double resolution;
-    std::int64_t max_iteration_count;
+    explicit descriptor_impl() {
+        if constexpr (!std::is_same_v<Task, task::non_overlapping_communities>) {
+            static_assert("Unsupported task");
+        }
+    }
+    double tolerance = 0;
+    double resolution = 1;
+    std::int64_t max_iteration_count = 1;
 };
 
 template <typename Task>
@@ -61,6 +65,5 @@ void descriptor_base<Task>::set_max_iteration_count_impl(std::int64_t max_iterat
 }
 
 template class ONEDAL_EXPORT descriptor_base<task::non_overlapping_communities>;
-} // namespace detail
 
 } // namespace oneapi::dal::preview::louvain
